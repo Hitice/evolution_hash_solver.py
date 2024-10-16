@@ -1,20 +1,26 @@
-# evolution_hash_solver.py
-Hash Evolution Solver explores non-standard mathematical formulas to solve user-provided 32-bit hashes. Using evolutionary algorithms and multi-core processing, the program evolves formulas over millions of generations, offering a unique experimental approach to hash solving.
-
 # Hash Evolution Solver
 
-This project implements an evolutionary algorithm to find mathematical formulas that produce specific hash values. Instead of using conventional cryptographic functions like SHA-256, this program explores different non-standard mathematical formulas.
+Hash Evolution Solver is an experimental project that attempts to solve 32-bit hashes using non-standard mathematical formulas. Unlike traditional hash-solving techniques using cryptographic hash functions like SHA-256, this project explores evolving mathematical formulas via evolutionary algorithms and multi-core processing over millions of iterations.
+
+## Features
+
+- Explore non-standard mathematical formulas to generate hash-like values.
+- Uses evolutionary algorithms to "evolve" formulas that approximate a target hash.
+- Parallel processing support using multiple CPU cores for faster computations.
+- Progress tracking with a visual progress bar using `tqdm`.
 
 ## How it Works
 
-1. The program starts with a random population of formulas.
-2. Each formula is applied to an input value, and the hash is calculated.
-3. The goal is to evolve a formula that matches the target hash value provided by the user.
-4. The algorithm runs for a defined number of iterations or until the correct formula is found.
+1. **Random Formula Population**: The program begins with a randomly generated population of formulas, each represented as a tuple of (input, formula_index).
+2. **Hash Calculation**: Each formula in the population is applied to an input value, and a hash-like value is calculated.
+3. **Evolution**: Over many generations, formulas are mutated and selected based on their proximity to the target hash.
+4. **Termination**: The program continues to evolve formulas until the target hash is found or a defined maximum number of iterations is reached.
 
-## Usage
+This program provides a unique approach to solving user-provided 32-bit hashes through experimentation rather than traditional cryptographic functions.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/hash_evolution_project.git
-   cd hash_evolution_project
+## Requirements
+
+Install the required dependencies:
+
+```bash
+pip install -r requirements.txt
