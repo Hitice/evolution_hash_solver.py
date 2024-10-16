@@ -1,141 +1,105 @@
-import random
-import sys
 import math
+import random
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
 
-def generate_hash(input, formula_index):
+def baby_step_giant_step(base, target, prime):
     """
-    Generate a hash using non-conventional mathematical formulas.
-    Different formulas are applied based on the formula_index.
-    
-    :param input: Integer value to hash.
-    :param formula_index: Index to select the mathematical formula.
-    :return: The calculated hash value.
+    Solves the discrete logarithm problem using the Baby-Step Giant-Step method.
+    Finds `x` such that base^x ≡ target (mod prime).
+
+    :param base: The base of the logarithm (g in g^x mod p).
+    :param target: The result of the logarithm (h in g^x ≡ h mod p).
+    :param prime: The prime modulus.
+    :return: The value of x or -1 if not found.
     """
-    if formula_index == 0:
-        hash_value = ((input * 123456789) ^ 987654321) % (1 << 32)
-    elif formula_index == 1:
-        hash_value = (pow(input, 5, 2**32) * 2654435761) % (1 << 32)
-    elif formula_index == 2:
-        hash_value = (math.sin(input) * 2**31) % (1 << 32)
-    elif formula_index == 3:
-        base = random.randint(1, 1000)
-        giant_step = 2**16
-        baby_step = int(math.sqrt(giant_step))
-        baby_steps = {}
-        for j in range(baby_step):
-            baby_steps[(base * pow(2, j, giant_step)) % giant_step] = j
-        for i in range(giant_step):
-            rhs = (input * pow(base, i, giant_step)) % giant_step
-            if rhs in baby_steps:
-                x = i * baby_step + baby_steps[rhs]
-                hash_value = x
-                break
+    m = math.isqrt(prime) + 1  # Size of the baby steps
+    baby_steps = {}
+
+    # Baby step: Calculate and store base^j mod prime for j = 0, 1, ..., m-1
+    baby_step = 1
+    for j in range(m):
+        baby_steps[baby_step] = j
+        baby_step = (baby_step * base) % prime
+
+    # Giant step: Check if any base^(m * i) * target mod prime is in baby_steps
+    inv_base_m = pow(base, prime - m - 1, prime)  # base^(-m) mod prime
+    giant_step = target
+    for i in range(m):
+        if giant_step in baby_steps:
+            return i * m + baby_steps[giant_step]
+        giant_step = (giant_step * inv_base_m) % prime
+
+    return -1
+
+def pollards_rho(base, target, prime):
+    """
+    Pollard's Rho algorithm for solving the discrete logarithm problem.
+    Finds `x` such that base^x ≡ target (mod prime).
+
+    :param base: The base of the logarithm (g in g^x mod p).
+    :param target: The result of the logarithm (h in g^x ≡ h mod p).
+    :param prime: The prime modulus.
+    :return: The value of x or -1 if not found.
+    """
+    def f(x, a, b):
+        if x % 3 == 0:
+            return (x * x % prime, a * 2 % (prime - 1), b * 2 % (prime - 1))
+        elif x % 3 == 1:
+            return (x * base % prime, (a + 1) % (prime - 1), b)
         else:
-            hash_value = -1
-    elif formula_index == 4:
-        def pollards_rho(n):
-            x = random.randint(1, n-1)
-            y = x
-            c = random.randint(1, n-1)
-            g = 1
-            while g == 1:
-                x = (pow(x, 2, n) + c) % n
-                y = (pow(y, 2, n) + c) % n
-                y = (pow(y, 2, n) + c) % n
-                g = math.gcd(abs(x - y), n)
-            return g
-        hash_value = pollards_rho(input)
+            return (x * target % prime, a, (b + 1) % (prime - 1))
+
+    x, a, b = 1, 0, 0
+    X, A, B = x, a, b
+    for _ in range(prime):
+        x, a, b = f(x, a, b)
+        X, A, B = f(*f(X, A, B))
+
+        if x == X:
+            r = (b - B) % (prime - 1)
+            if r == 0:
+                return -1
+            return (A - a) * pow(r, prime - 2, prime - 1) % (prime - 1)
+
+    return -1
+
+def solve_discrete_log(base, target, prime, method="baby-step"):
+    """
+    Attempts to solve the discrete logarithm problem using different methods.
+
+    :param base: The base of the logarithm (g in g^x mod p).
+    :param target: The result of the logarithm (h in g^x ≡ h mod p).
+    :param prime: The prime modulus.
+    :param method: The method to use: 'baby-step' or 'pollard'.
+    :return: The value of x or -1 if not found.
+    """
+    if method == "baby-step":
+        return baby_step_giant_step(base, target, prime)
+    elif method == "pollard":
+        return pollards_rho(base, target, prime)
     else:
-        raise ValueError("Unsupported formula index.")
-    
-    return hash_value
+        raise ValueError("Unsupported method: Choose 'baby-step' or 'pollard'.")
 
-def evaluate_formula(formula, target):
+def main():
     """
-    Apply a formula to the input and calculate the resulting hash.
-    
-    :param formula: Tuple containing (input, formula_index)
-    :param target: The target hash we want to match.
-    :return: True if the formula generates the target hash.
+    Main program to solve the discrete logarithm problem.
+    Asks for user input for the base, target, and prime.
     """
-    hash_value = generate_hash(formula[0], formula[1])
-    return hash_value == target
+    base = int(input("Enter the base (g in g^x mod p): "))
+    target = int(input("Enter the target (h in g^x ≡ h mod p): "))
+    prime = int(input("Enter the prime modulus (p): "))
 
-def evaluate_population(population, target_hash):
-    """
-    Evaluate all formulas in the population and return the formula that matches the target hash.
-    
-    :param population: A list of formulas.
-    :param target_hash: The target hash to match.
-    :return: The formula that matches the target hash or None if not found.
-    """
-    for formula in population:
-        if evaluate_formula(formula, target_hash):
-            return formula
-    return None
+    method = input("Choose a method ('baby-step' or 'pollard'): ").strip().lower()
 
-def main(target_hash):
-    """
-    Main function to evolve formulas and find the one that produces the target hash.
+    print(f"Solving the discrete log problem for base={base}, target={target}, prime={prime} using {method} method...")
     
-    :param target_hash: The hash that the program is trying to find.
-    """
-    population_size = 1000
-    max_generations = 2000000
-    min_value = 0
-    max_value = (1 << 32) - 1
-    
-    population = [(random.randint(min_value, max_value), random.randint(0, 4)) for _ in range(population_size)]
-    
-    found = False
-    generation = 0
-    
-    progress_bar = tqdm(total=max_generations, desc='Progress', file=sys.stdout, unit=' iterations')
-    
-    while not found and generation < max_generations:
-        num_cpus = cpu_count()
-        chunk_size = len(population) // num_cpus
-        population_chunks = [population[i:i + chunk_size] for i in range(0, len(population), chunk_size)]
-        
-        with Pool(processes=num_cpus) as pool:
-            results = pool.map(evaluate_population_wrapper, [(chunk, target_hash) for chunk in population_chunks])
-        
-        for result in results:
-            if result is not None:
-                print(f"Found formula that produces the hash {target_hash}: {result}")
-                found = True
-                break
-        
-        progress_bar.update(1)
-        
-        if found:
-            break
-        
-        new_population = []
-        for formula in population:
-            mutated_formula = (formula[0] + random.randint(-1000000, 1000000), formula[1])
-            new_population.append(mutated_formula)
-        
-        population = new_population
-        generation += 1
-    
-    progress_bar.close()
-    
-    if not found:
-        print(f"Failed to find a formula that produces the hash {target_hash} after {max_generations} generations.")
+    x = solve_discrete_log(base, target, prime, method=method)
 
-def evaluate_population_wrapper(args):
-    """
-    Wrapper function to evaluate the population in parallel.
-    
-    :param args: Tuple containing (population_chunk, target_hash)
-    :return: The formula if found, otherwise None.
-    """
-    population_chunk, target_hash = args
-    return evaluate_population(population_chunk, target_hash)
+    if x != -1:
+        print(f"Solution found: x = {x}")
+    else:
+        print("No solution found.")
 
 if __name__ == "__main__":
-    target_hash = int(input("Enter the target hash (number between 0 and 4294967295): "))
-    main(target_hash)
+    main()
